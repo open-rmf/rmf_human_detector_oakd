@@ -20,12 +20,14 @@ target_include_directories(rmf_human_detector_oakd
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
     ${rmf_obstacle_ros2_INCLUDE_DIRS}
     ${pluginlib_INCLUDE_DIRS}
+    ${rclcpp_INCLUDE_DIRS}
 )
 
 target_link_libraries(rmf_human_detector_oakd
   PUBLIC
     rmf_obstacle_ros2::rmf_obstacle_ros2
     ${pluginlib_LIBRARIES}
+    ${rclcpp_LIBRARIES}
 )
 
 target_compile_features(rmf_human_detector_oakd INTERFACE cxx_std_17)
@@ -36,6 +38,8 @@ pluginlib_export_plugin_description_file(rmf_obstacle_ros2 plugins.xml)
 ament_export_libraries(
   rmf_human_detector_oakd
 )
+
+ament_export_dependencies(rclcpp rmf_obstacle_ros2 pluginlib)
 
 install(
   TARGETS rmf_human_detector_oakd
