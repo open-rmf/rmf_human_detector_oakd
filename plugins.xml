@@ -1,7 +1,6 @@
 <library path="rmf_human_detector_oakd">
   <class type="rmf_human_detector_oakd::OakDHumanDetector"
-         base_class_type="rmf_obstacle_ros2::Detector"
-         name="rmf_human_detector_oakd">
+         base_class_type="rmf_obstacle_ros2::Detector">
     <description>Detect humans using an OakD camera</description>
   </class>
 </library>

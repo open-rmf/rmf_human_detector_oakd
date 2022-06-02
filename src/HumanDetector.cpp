@@ -35,10 +35,10 @@ std::string OakDHumanDetector::name() const
 }
 
 
-} // rmf_obstacle_ros2
+} // rmf_human_detector_oakd
 
 #include <pluginlib/class_list_macros.hpp>
 
 PLUGINLIB_EXPORT_CLASS(
   rmf_human_detector_oakd::OakDHumanDetector,
-  rmf_obstacle_ros2::Detector);
+  rmf_obstacle_ros2::Detector)

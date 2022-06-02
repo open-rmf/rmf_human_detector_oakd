@@ -42,7 +42,6 @@ private:
 
 };
 
-
 } // namespace rmf_human_detector_oakd
 
 #endif // SRC__HUMANDETECTOR_HPP

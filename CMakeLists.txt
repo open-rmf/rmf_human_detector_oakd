@@ -12,7 +12,7 @@ find_package(pluginlib REQUIRED)
 find_package(rmf_obstacle_ros2 REQUIRED)
 
 #===============================================================================
-add_library(rmf_human_detector_oakd src/HumanDetector.cpp)
+add_library(rmf_human_detector_oakd SHARED src/HumanDetector.cpp)
 
 target_include_directories(rmf_human_detector_oakd
   PUBLIC
@@ -26,8 +26,8 @@ target_include_directories(rmf_human_detector_oakd
 target_link_libraries(rmf_human_detector_oakd
   PUBLIC
     rmf_obstacle_ros2::rmf_obstacle_ros2
-    ${pluginlib_LIBRARIES}
-    ${rclcpp_LIBRARIES}
+    pluginlib::pluginlib
+    rclcpp::rclcpp
 )
 
 target_compile_features(rmf_human_detector_oakd INTERFACE cxx_std_17)
@@ -43,6 +43,7 @@ ament_export_dependencies(rclcpp rmf_obstacle_ros2 pluginlib)
 
 install(
   TARGETS rmf_human_detector_oakd
+  EXPORT rmf_human_detector_oakd
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
   RUNTIME DESTINATION bin
