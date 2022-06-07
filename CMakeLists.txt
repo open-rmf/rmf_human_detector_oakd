@@ -44,10 +44,16 @@ rclcpp_components_register_node(rmf_human_detector_oakd
   PLUGIN "rmf_human_detector_oakd::OakDHumanDetector"
   EXECUTABLE human_detector)
 
-  install(TARGETS rmf_human_detector_oakd
+install(
+  TARGETS rmf_human_detector_oakd
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
   RUNTIME DESTINATION bin
+)
+
+install(
+  DIRECTORY launch
+  DESTINATION share/${PROJECT_NAME}
 )
 
 ament_package()
