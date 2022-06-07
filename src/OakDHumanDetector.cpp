@@ -108,7 +108,8 @@ OakDHumanDetector::OakDHumanDetector(
 
   // Setting node configs
   stereo->initialConfig.setConfidenceThreshold(255);
-  stereo->setDefaultProfilePreset(dai::node::StereoDepth::PresetMode::HIGH_DENSITY);
+  stereo->setDefaultProfilePreset(
+    dai::node::StereoDepth::PresetMode::HIGH_DENSITY);
   // Align depth map to the perspective of RGB camera, on which inference is done
   stereo->setDepthAlign(dai::CameraBoardSocket::RGB);
   stereo->setOutputSize(
@@ -127,13 +128,14 @@ OakDHumanDetector::OakDHumanDetector(
   monoRight->out.link(stereo->right);
 
   camRgb->preview.link(spatialDetectionNetwork->input);
-  if(syncNN)
+  if (syncNN)
     spatialDetectionNetwork->passthrough.link(xoutRgb->input);
   else
     camRgb->preview.link(xoutRgb->input);
 
   spatialDetectionNetwork->out.link(xoutNN->input); // detections
-  spatialDetectionNetwork->boundingBoxMapping.link(xoutBoundingBoxDepthMapping->input);
+  spatialDetectionNetwork->boundingBoxMapping.link(
+    xoutBoundingBoxDepthMapping->input);
 
   stereo->depth.link(spatialDetectionNetwork->inputDepth);
   spatialDetectionNetwork->passthroughDepth.link(xoutDepth->input);
@@ -145,22 +147,24 @@ OakDHumanDetector::OakDHumanDetector(
       // Output queues will be used to get the rgb frames and nn data from the outputs defined above
       auto previewQueue = device.getOutputQueue("rgb", 4, false); // encoding, maxSize, blocking
       auto detectionNNQueue = device.getOutputQueue("detections", 4, false);
-      auto xoutBoundingBoxDepthMappingQueue = device.getOutputQueue("boundingBoxDepthMapping", 4, false);
+      auto xoutBoundingBoxDepthMappingQueue = device.getOutputQueue(
+        "boundingBoxDepthMapping", 4, false);
       auto depthQueue = device.getOutputQueue("depth", 4, false);
 
       const auto color = cv::Scalar(255, 255, 255);
 
-      while(data->run)
+      while (data->run)
       {
         auto inDet = detectionNNQueue->get<dai::SpatialImgDetections>();
-        if(inDet == nullptr)
+        if (inDet == nullptr)
           continue;
 
         auto depth = depthQueue->get<dai::ImgFrame>();
         cv::Mat depthFrame = depth->getFrame();  // depthFrame values are in millimeters
 
         const auto& detections = inDet->detections;
-        const auto& boundingBoxMapping = xoutBoundingBoxDepthMappingQueue->get<dai::SpatialLocationCalculatorConfig>();
+        const auto& boundingBoxMapping =
+          xoutBoundingBoxDepthMappingQueue->get<dai::SpatialLocationCalculatorConfig>();
         const auto& roiDatas = boundingBoxMapping->getConfigData();
 
         const auto num_detections = detections.size();
@@ -181,7 +185,8 @@ OakDHumanDetector::OakDHumanDetector(
         {
           const auto& inPreview = previewQueue->get<dai::ImgFrame>();
           frame = inPreview->getCvFrame();
-          cv::normalize(depthFrame, depthFrameColor, 255, 0, cv::NORM_INF, CV_8UC1);
+          cv::normalize(depthFrame, depthFrameColor, 255, 0, cv::NORM_INF,
+            CV_8UC1);
           cv::equalizeHist(depthFrameColor, depthFrameColor);
           cv::applyColorMap(depthFrameColor, depthFrameColor, cv::COLORMAP_HOT);
         }
@@ -237,12 +242,22 @@ OakDHumanDetector::OakDHumanDetector(
             const auto x2 = (int)(detection_it->xmax * frame_width);
             const auto y1 = (int)(detection_it->ymin * frame_height);
             const auto y2 = (int)(detection_it->ymax * frame_height);
-            cv::putText(frame, label, cv::Point(x1 + 10, y1 + 20), cv::FONT_HERSHEY_TRIPLEX, 0.5, 255);
-            cv::putText(frame, std::to_string(detection_it->confidence*100)+"%", cv::Point(x1 + 10, y1 + 35), cv::FONT_HERSHEY_TRIPLEX, 0.5, 255);
-            cv::putText(frame, std::to_string(spatial_x)+"m", cv::Point(x1 + 10, y1 + 50), cv::FONT_HERSHEY_TRIPLEX, 0.5, 255);
-            cv::putText(frame, std::to_string(spatial_y)+"m", cv::Point(x1 + 10, y1 + 65), cv::FONT_HERSHEY_TRIPLEX, 0.5, 255);
-            cv::putText(frame, std::to_string(spatial_z)+"m", cv::Point(x1 + 10, y1 + 80), cv::FONT_HERSHEY_TRIPLEX, 0.5, 255);
-            cv::rectangle(frame, cv::Point(x1, y1), cv::Point(x2, y2), color, cv::FONT_HERSHEY_SIMPLEX);
+            cv::putText(frame, label, cv::Point(x1 + 10,
+              y1 + 20), cv::FONT_HERSHEY_TRIPLEX, 0.5,
+              255);
+            cv::putText(frame, std::to_string(
+                detection_it->confidence*100)+"%", cv::Point(x1 + 10,
+              y1 + 35), cv::FONT_HERSHEY_TRIPLEX, 0.5,
+              255);
+            cv::putText(frame, std::to_string(spatial_x)+"m",
+              cv::Point(x1 + 10, y1 + 50), cv::FONT_HERSHEY_TRIPLEX, 0.5, 255);
+            cv::putText(frame, std::to_string(spatial_y)+"m",
+              cv::Point(x1 + 10, y1 + 65), cv::FONT_HERSHEY_TRIPLEX, 0.5, 255);
+            cv::putText(frame, std::to_string(spatial_z)+"m",
+              cv::Point(x1 + 10, y1 + 80), cv::FONT_HERSHEY_TRIPLEX, 0.5, 255);
+            cv::rectangle(frame, cv::Point(x1, y1), cv::Point(x2,
+              y2), color,
+              cv::FONT_HERSHEY_SIMPLEX);
           }
 
           rmf_obstacle_msgs::msg::Obstacle obstacle;
@@ -277,7 +292,7 @@ OakDHumanDetector::OakDHumanDetector(
 
     };
 
-    _data->detection_thread = std::thread(thread_fn);
+  _data->detection_thread = std::thread(thread_fn);
 
 }
 
