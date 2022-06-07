@@ -17,6 +17,8 @@
 
 #include "HumanDetector.hpp"
 
+#include <iostream>
+
 namespace rmf_human_detector_oakd {
 
 //==============================================================================
@@ -24,16 +26,231 @@ void OakDHumanDetector::initialize(
   const rclcpp::Node& node,
   DetectorCallback cb)
 {
-  _cb = std::move(cb);
+  _data = std::make_shared<Data>();
+  _data->cb = std::move(cb);
+
+
+  // Declare prameters
+  RCLCPP_INFO(
+    node.get_logger(),
+    "Configuring rmf_human_detector_oakd...");
+  const std::string nnPath = node.declare_parameter("blob_path", "BLOB_PATH");
+  RCLCPP_INFO(
+    node.get_logger(),
+    "Setting NN blob_path parameter to %s", nnPath.c_str());
+  bool syncNN = node.declare_parameter("sync_nn", true);
+  RCLCPP_INFO(
+    node.get_logger(),
+    "Setting sync_nn parameter to %b", syncNN);
+  _data->detector_name = node.declare_parameter(
+    "detector_name", "rmf_human_detector_oakd");
+  RCLCPP_INFO(
+    node.get_logger(),
+    "Setting detector_name parameter to %s", _data->detector_name.c_str());
+  _data->frame_id = node.declare_parameter("frame_id", "oakd_camera_link");
+  RCLCPP_INFO(
+    node.get_logger(),
+    "Setting frame_id parameter to %s", _data->frame_id.c_str());
+  _data->level_name = node.declare_parameter("level_name", "L1");
+  RCLCPP_INFO(
+    node.get_logger(),
+    "Setting level_name parameter to %s", _data->level_name.c_str());
+  _data->debug = node.declare_parameter("debug", false);
+  RCLCPP_INFO(
+    node.get_logger(),
+    "Setting debug parameter to %b", _data->debug);
+
+  // Initialize the OakD pipeline
+  _data->pipeline = dai.Pipeline()
+
+  // Add nodes for rgb, depth, and nn
+  auto camRgb = pipeline.create<dai::node::ColorCamera>();
+  auto spatialDetectionNetwork =
+    pipeline.create<dai::node::MobileNetSpatialDetectionNetwork>();
+  auto monoLeft = pipeline.create<dai::node::MonoCamera>();
+  auto monoRight = pipeline.create<dai::node::MonoCamera>();
+  auto stereo = pipeline.create<dai::node::StereoDepth>();
+
+  // Create connections
+  auto xoutRgb = pipeline.create<dai::node::XLinkOut>();
+  auto xoutNN = pipeline.create<dai::node::XLinkOut>();
+  auto xoutBoundingBoxDepthMapping = pipeline.create<dai::node::XLinkOut>();
+  auto xoutDepth = pipeline.create<dai::node::XLinkOut>();
+
+  // Create message streams
+  xoutRgb->setStreamName("rgb");
+  xoutNN->setStreamName("detections");
+  xoutBoundingBoxDepthMapping->setStreamName("boundingBoxDepthMapping");
+  xoutDepth->setStreamName("depth");
+
+  // Set properties
+  camRgb->setPreviewSize(300, 300);
+  camRgb->setResolution(
+    dai::ColorCameraProperties::SensorResolution::THE_1080_P);
+  camRgb->setInterleaved(false);
+  camRgb->setColorOrder(dai::ColorCameraProperties::ColorOrder::BGR);
+
+  monoLeft->setResolution(
+    dai::MonoCameraProperties::SensorResolution::THE_720_P);
+  monoLeft->setBoardSocket(dai::CameraBoardSocket::LEFT);
+  monoRight->setResolution(
+    dai::MonoCameraProperties::SensorResolution::THE_720_P);
+  monoRight->setBoardSocket(dai::CameraBoardSocket::RIGHT);
+
+  // Setting node configs
+  stereo->initialConfig->setConfidenceThreshold(255);
+  stereo->setDefaultProfilePreset(dai::node::StereoDepth::PresetMode::HIGH_DENSITY);
+  // Align depth map to the perspective of RGB camera, on which inference is done
+  stereo->setDepthAlign(dai::CameraBoardSocket::RGB);
+  stereo->setOutputSize(
+    monoLeft->getResolutionWidth(), monoLeft->getResolutionHeight());
+
+  spatialDetectionNetwork->setBlobPath(nnPath);
+  spatialDetectionNetwork->setConfidenceThreshold(0.5f);
+  spatialDetectionNetwork->input.setBlocking(false);
+  spatialDetectionNetwork->setBoundingBoxScaleFactor(0.7);
+  spatialDetectionNetwork->setDepthLowerThreshold(100);
+  spatialDetectionNetwork->setDepthUpperThreshold(5000);
+  // spatialDetectionNetwork->setNumInferenceThreads(2);
+
+  // Link nodes
+  monoLeft->out.link(stereo->left);
+  monoRight->out.link(stereo->right);
+
+  camRgb->preview.link(spatialDetectionNetwork->input);
+  if(syncNN)
+    spatialDetectionNetwork->passthrough.link(xoutRgb->input);
+  else
+    camRgb->preview.link(xoutRgb->input);
+
+  spatialDetectionNetwork->out.link(xoutNN->input); // detections
+  spatialDetectionNetwork->boundingBoxMapping.link(xoutBoundingBoxDepthMapping->input);
+
+  stereo->depth.link(spatialDetectionNetwork->inputDepth);
+  spatialDetectionNetwork->passthroughDepth.link(xoutDepth->input);
+
+  _data->detection_thread = std::thread(
+    [data = _data]()
+    {
+      dai::Device device(data->pipeline);
+      // Output queues will be used to get the rgb frames and nn data from the outputs defined above
+      auto previewQueue = device.getOutputQueue("rgb", 4, false); // encoding, maxSize, blocking
+      auto detectionNNQueue = device.getOutputQueue("detections", 4, false);
+      auto xoutBoundingBoxDepthMappingQueue = device.getOutputQueue("boundingBoxDepthMapping", 4, false);
+      auto depthQueue = device.getOutputQueue("depth", 4, false);
+
+      auto startTime = std::chrono::steady_clock::now();
+      int counter = 0;
+      float fps = 0;
+      const auto color = cv::Scalar(255, 255, 255);
+
+      while(data->run)
+      {
+        auto inDet = detectionNNQueue->get<dai::SpatialImgDetections>();
+        if(inDet == nullptr):
+            continue
+
+        auto depth = depthQueue->get<dai::ImgFrame>();
+        cv::Mat depthFrame = depth->getFrame();  // depthFrame values are in millimeters
+
+        const auto& detections = inDet->detections;
+        const auto& boundingBoxMapping = xoutBoundingBoxDepthMappingQueue->get<dai::SpatialLocationCalculatorConfig>();
+        const auto& roiDatas = boundingBoxMapping->getConfigData();
+
+        const auto num_detections = detections.size();
+        const auto num_rois = roiDatas.size();
+        if (num_detections != num_rois)
+        {
+          std::cout << "Number of detected bounding boxes [" << num_detections
+                    << "] does not match number of detected ROIs ["
+                    << num_rois << "]" << std::endl;
+          continue;
+        }
+
+        // TODO(YV) track objects and update on when there is significant change in position
+
+        cv::Mat depthFrameColor;
+        if (data->debug)
+        {
+          const cv::Mat& frame = inPreview->getCvFrame();
+          cv::normalize(depthFrame, depthFrameColor, 255, 0, cv::NORM_INF, CV_8UC1);
+          cv::equalizeHist(depthFrameColor, depthFrameColor);
+          cv::applyColorMap(depthFrameColor, depthFrameColor, cv::COLORMAP_HOT);
+        }
+
+        auto detection_it = detections.begin();
+        auto roi_it = roiDatas.begin();
+
+        Obstacles obstacles;
+        std::size_t obstacle_count = 0;
+        for (; detection_it != detections.end(); ++detection_it; ++roi_it)
+        {
+          ++obstacle_count;
+          const auto roi = roi_it->roi.denormalize(depthFrame.cols, depthFrame.rows);
+          if (detection_it->label >= data->labels.size())
+          {
+            // std::cout << "[Warn] Detected unclassified object." << std::endl;
+            continue;
+          }
+          const std::string& label = data->labels[detection_it->label];
+          if (label != "person")
+          {
+            std::cout << "Ignoring non-human detection" << std::endl;
+            continue;
+          }
+
+          if (data->debug)
+          {
+            const auto& topLeft = roi.topLeft();
+            const auto& bottomRight = roi.bottomRight();
+            const auto xmin = static_cast<int>(topLeft.x);
+            const auto ymin = static_cast<int>(topLeft.y);
+            const auto xmax = static_cast<int>(bottomRight.x);
+            const auto ymax = static_cast<int>(bottomRight.y);
+            cv::rectangle(
+              depthFrameColor,
+              cv::Rect(cv::Point(xmin, ymin),
+              cv::Point(xmax, ymax)),
+              color,
+              cv::FONT_HERSHEY_SIMPLEX);
+          }
+
+          // TODO(YV): Estimate actual width and height from spatial data.
+          const double human_width = 0.6;
+          const double human_height = 1.8;
+          const double spatial_x = detection_it->spatialCoordinates.x / 1000.0;
+          const double spatial_y = detection_it->spatialCoordinates.y / 1000.0;
+          const double spatial_z = detection_it->spatialCoordinates.z / 1000.0;
+
+          rmf_obstacle_msgs::msg::Obstacle obstacle;
+          obstacle.header.frame_id = data->frame_id;
+          // TODO(YV): Stamp
+          obstacle.id = obstacle_count;
+          obstacle.id = data->detector_name;
+          obstacle.level_name = data->level_name;
+        }
+
+    });
 
 }
 
 //==============================================================================
 std::string OakDHumanDetector::name() const
 {
-  return _name;
+  if (_data)
+    return _data->detector_name;
+  return "rmf_human_detector_oakd";
 }
 
+//==============================================================================
+OakDHumanDetector::~OakDHUmanDetector()
+{
+  if (_data->detection_thread.joinable())
+  {
+    _data-run = false;
+    _data->detection_thread.join();
+  }
+}
 
 } // rmf_human_detector_oakd
 

@@ -21,6 +21,7 @@ target_include_directories(rmf_human_detector_oakd
     ${rmf_obstacle_ros2_INCLUDE_DIRS}
     ${pluginlib_INCLUDE_DIRS}
     ${rclcpp_INCLUDE_DIRS}
+    ${depthai_INCLUDE_DIRS}
 )
 
 target_link_libraries(rmf_human_detector_oakd
@@ -28,6 +29,7 @@ target_link_libraries(rmf_human_detector_oakd
     rmf_obstacle_ros2::rmf_obstacle_ros2
     pluginlib::pluginlib
     rclcpp::rclcpp
+    depthai::opencv
 )
 
 target_compile_features(rmf_human_detector_oakd INTERFACE cxx_std_17)

@@ -18,7 +18,14 @@
 #ifndef SRC__HUMANDETECTOR_HPP
 #define SRC__HUMANDETECTOR_HPP
 
+#include <depthai/depthai.hpp>
+
 #include <rmf_obstacle_ros2/Detector.hpp>
+
+#include <rclcpp/rclcpp.hpp>
+
+#include <thread>
+#include <atomic>
 
 namespace rmf_human_detector_oakd {
 //==============================================================================
@@ -36,9 +43,31 @@ public:
   /// Documentation inherited
   std::string name() const final;
 
+  ~OakDHumanDetector();
+
 private:
-  DetectorCallback _cb;
-  std::string _name = "rmf_human_detector_oakd";
+  struct Data
+  {
+    DetectorCallback cb;
+    std::string detector_name;
+    std::string frame_id;
+    std::string level_name;
+    // TODO(YV): Consider making this a generic detector and accept the label
+    // of interest as a ROS 2 param. For now we will ignore all detections
+    // except "person".
+    const std::vector<std::string> labels = {
+      "background", "aeroplane", "bicycle", "bird", "boat", "bottle", "bus",
+      "car", "cat", "chair", "cow", "diningtable", "dog", "horse",
+      "motorbike", "person", "pottedplant", "sheep", "sofa", "train", "tvmonitor"
+    };
+
+    dai::Pipeline pipeline;
+    std::atomic_bool run = true;
+    std::thread detection_thread;
+    bool debug; // Visualize cv frames
+  };
+
+  std::shared_ptr<Data> _data;
 
 };
 
