@@ -12,6 +12,7 @@
   <depend>rclcpp</depend>
   <depend>rclcpp_components</depend>
   <depend>depthai</depend>
+  <depend>libopencv-dev</depend>
   <depend>rmf_obstacle_msgs</depend>
 
   <export>

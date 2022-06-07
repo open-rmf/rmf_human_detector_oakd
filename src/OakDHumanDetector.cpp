@@ -15,9 +15,13 @@
  *
 */
 
-#include "HumanDetector.hpp"
+#include "OakDHumanDetector.hpp"
 
 #include <rclcpp_components/register_node_macro.hpp>
+
+#include <opencv2/core.hpp>
+#include <opencv2/imgcodecs.hpp>
+#include <opencv2/highgui.hpp>
 
 #include <iostream>
 
@@ -45,7 +49,7 @@ OakDHumanDetector::OakDHumanDetector(
   bool syncNN = this->declare_parameter("sync_nn", true);
   RCLCPP_INFO(
     this->get_logger(),
-    "Setting sync_nn parameter to %b", syncNN);
+    "Setting sync_nn parameter to %s", syncNN ? "True" : "False");
   _data->detector_name = this->declare_parameter(
     "detector_name", "rmf_human_detector_oakd");
   RCLCPP_INFO(
@@ -62,7 +66,7 @@ OakDHumanDetector::OakDHumanDetector(
   _data->debug = this->declare_parameter("debug", false);
   RCLCPP_INFO(
     this->get_logger(),
-    "Setting debug parameter to %b", _data->debug);
+    "Setting debug parameter to %s", _data->debug ? "True" : "False");
 
   // Initialize the OakD pipeline
   _data->pipeline = dai::Pipeline();
@@ -78,7 +82,8 @@ OakDHumanDetector::OakDHumanDetector(
   // Create connections
   auto xoutRgb = _data->pipeline.create<dai::node::XLinkOut>();
   auto xoutNN = _data->pipeline.create<dai::node::XLinkOut>();
-  auto xoutBoundingBoxDepthMapping = _data->pipeline.create<dai::node::XLinkOut>();
+  auto xoutBoundingBoxDepthMapping =
+    _data->pipeline.create<dai::node::XLinkOut>();
   auto xoutDepth = _data->pipeline.create<dai::node::XLinkOut>();
 
   // Create message streams
@@ -162,9 +167,9 @@ OakDHumanDetector::OakDHumanDetector(
         const auto num_rois = roiDatas.size();
         if (num_detections != num_rois)
         {
-          std::cout << "Number of detected bounding boxes [" << num_detections
-                    << "] does not match number of detected ROIs ["
-                    << num_rois << "]" << std::endl;
+          // std::cout << "Number of detected bounding boxes [" << num_detections
+          //           << "] does not match number of detected ROIs ["
+          //           << num_rois << "]" << std::endl;
           continue;
         }
 
@@ -199,25 +204,10 @@ OakDHumanDetector::OakDHumanDetector(
           const std::string& label = data->labels[detection_it->label];
           if (label != "person")
           {
-            std::cout << "Ignoring non-human detection" << std::endl;
+            // std::cout << "Ignoring non-human detection: " << label << std::endl;
             continue;
           }
 
-          if (data->debug)
-          {
-            const auto& topLeft = roi.topLeft();
-            const auto& bottomRight = roi.bottomRight();
-            const auto xmin = static_cast<int>(topLeft.x);
-            const auto ymin = static_cast<int>(topLeft.y);
-            const auto xmax = static_cast<int>(bottomRight.x);
-            const auto ymax = static_cast<int>(bottomRight.y);
-            cv::rectangle(
-              depthFrameColor,
-              cv::Rect(cv::Point(xmin, ymin),
-              cv::Point(xmax, ymax)),
-              color,
-              cv::FONT_HERSHEY_SIMPLEX);
-          }
 
           // TODO(YV): Estimate actual width and height from spatial data.
           const double human_width = 0.6;
@@ -225,6 +215,35 @@ OakDHumanDetector::OakDHumanDetector(
           const double spatial_x = detection_it->spatialCoordinates.x / 1000.0;
           const double spatial_y = detection_it->spatialCoordinates.y / 1000.0;
           const double spatial_z = detection_it->spatialCoordinates.z / 1000.0;
+
+          if (data->debug)
+          {
+            const auto& topLeft = roi.topLeft();
+            const auto& bottomRight = roi.bottomRight();
+            const auto xmin = (int)(topLeft.x);
+            const auto ymin = (int)(bottomRight.y);
+            const auto xmax = (int)(bottomRight.x);
+            const auto ymax = (int)(topLeft.y);
+            cv::rectangle(
+              depthFrameColor,
+              cv::Rect(cv::Point(xmin, ymin),
+              cv::Point(xmax, ymax)),
+              color,
+              cv::FONT_HERSHEY_SIMPLEX);
+
+            const auto frame_width = frame.cols;
+            const auto frame_height = frame.rows;
+            const auto x1 = (int)(detection_it->xmin * frame_width);
+            const auto x2 = (int)(detection_it->xmax * frame_width);
+            const auto y1 = (int)(detection_it->ymin * frame_height);
+            const auto y2 = (int)(detection_it->ymax * frame_height);
+            cv::putText(frame, label, cv::Point(x1 + 10, y1 + 20), cv::FONT_HERSHEY_TRIPLEX, 0.5, 255);
+            cv::putText(frame, std::to_string(detection_it->confidence*100)+"%", cv::Point(x1 + 10, y1 + 35), cv::FONT_HERSHEY_TRIPLEX, 0.5, 255);
+            cv::putText(frame, std::to_string(spatial_x)+"m", cv::Point(x1 + 10, y1 + 50), cv::FONT_HERSHEY_TRIPLEX, 0.5, 255);
+            cv::putText(frame, std::to_string(spatial_y)+"m", cv::Point(x1 + 10, y1 + 65), cv::FONT_HERSHEY_TRIPLEX, 0.5, 255);
+            cv::putText(frame, std::to_string(spatial_z)+"m", cv::Point(x1 + 10, y1 + 80), cv::FONT_HERSHEY_TRIPLEX, 0.5, 255);
+            cv::rectangle(frame, cv::Point(x1, y1), cv::Point(x2, y2), color, cv::FONT_HERSHEY_SIMPLEX);
+          }
 
           rmf_obstacle_msgs::msg::Obstacle obstacle;
           obstacle.header.frame_id = data->frame_id;
@@ -252,6 +271,7 @@ OakDHumanDetector::OakDHumanDetector(
         {
           cv::imshow("depth", depthFrameColor);
           cv::imshow("preview", frame);
+          cv::waitKey(1);
         }
       }
 
