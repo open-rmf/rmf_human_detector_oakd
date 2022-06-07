@@ -16,7 +16,7 @@ find_package(depthai CONFIG REQUIRED)
 find_package(OpenCV REQUIRED)
 
 #===============================================================================
-add_library(rmf_human_detector_oakd SHARED src/OakDHumanDetector.cpp)
+add_library(rmf_human_detector_oakd SHARED src/HumanDetector.cpp)
 
 target_include_directories(rmf_human_detector_oakd
   PUBLIC
@@ -41,7 +41,7 @@ target_link_libraries(rmf_human_detector_oakd
 target_compile_features(rmf_human_detector_oakd INTERFACE cxx_std_17)
 
 rclcpp_components_register_node(rmf_human_detector_oakd
-  PLUGIN "rmf_human_detector_oakd::OakDHumanDetector"
+  PLUGIN "rmf_human_detector_oakd::HumanDetector"
   EXECUTABLE human_detector)
 
 install(

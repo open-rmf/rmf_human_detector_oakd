@@ -29,14 +29,14 @@
 
 namespace rmf_human_detector_oakd {
 //==============================================================================
-class OakDHumanDetector : public rclcpp::Node
+class HumanDetector : public rclcpp::Node
 {
 public:
   using Obstacles = rmf_obstacle_msgs::msg::Obstacles;
-  OakDHumanDetector(
+  HumanDetector(
     const rclcpp::NodeOptions& options = rclcpp::NodeOptions());
 
-  ~OakDHumanDetector();
+  ~HumanDetector();
 
 private:
   struct Data

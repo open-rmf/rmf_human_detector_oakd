@@ -15,7 +15,7 @@
  *
 */
 
-#include "OakDHumanDetector.hpp"
+#include "HumanDetector.hpp"
 
 #include <rclcpp_components/register_node_macro.hpp>
 
@@ -28,7 +28,7 @@
 namespace rmf_human_detector_oakd {
 
 //==============================================================================
-OakDHumanDetector::OakDHumanDetector(
+HumanDetector::HumanDetector(
   const rclcpp::NodeOptions& options)
 : Node("rmf_human_detector_oakd", options)
 {
@@ -297,7 +297,7 @@ OakDHumanDetector::OakDHumanDetector(
 }
 
 //==============================================================================
-OakDHumanDetector::~OakDHumanDetector()
+HumanDetector::~HumanDetector()
 {
   if (_data->detection_thread.joinable())
   {
@@ -309,4 +309,4 @@ OakDHumanDetector::~OakDHumanDetector()
 } // rmf_human_detector_oakd
 
 
-RCLCPP_COMPONENTS_REGISTER_NODE(rmf_human_detector_oakd::OakDHumanDetector)
+RCLCPP_COMPONENTS_REGISTER_NODE(rmf_human_detector_oakd::HumanDetector)
