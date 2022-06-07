@@ -6,6 +6,7 @@
   <arg name="detector_name" default="rmf_human_detector_oakd" description="The name given to this detector"/>
   <arg name="frame_id" default="oakd_camera_link" description="The frame ID for the camera"/>
   <arg name="level_name" default="L1" description="The level or map on which the camera is located"/>
+   <arg name="obstacle_classification" default="human" description="The classificaation to be used to report human obstacles"/>
   <arg name="debug" default="false" description="If True, the detection results will be visualized"/>
 
   <node pkg="rmf_human_detector_oakd" exec="human_detector" output="both" name="rmf_human_detector_oakd">
@@ -14,6 +15,7 @@
     <param name="detector_name" value="$(var detector_name)"/>
     <param name="frame_id" value="$(var frame_id)"/>
     <param name="level_name" value="$(var level_name)"/>
+    <param name="obstacle_classification" value="$(var obstacle_classification)"/>
     <param name="debug" value="$(var debug)"/>
   </node>
 

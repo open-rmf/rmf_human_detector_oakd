@@ -44,6 +44,7 @@ private:
     std::string detector_name;
     std::string frame_id;
     std::string level_name;
+    std::string obstacle_classification;
     // TODO(YV): Consider making this a generic detector and accept the label
     // of interest as a ROS 2 param. For now we will ignore all detections
     // except "person".

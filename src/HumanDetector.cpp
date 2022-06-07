@@ -63,6 +63,12 @@ HumanDetector::HumanDetector(
   RCLCPP_INFO(
     this->get_logger(),
     "Setting level_name parameter to %s", _data->level_name.c_str());
+  _data->obstacle_classification = this->declare_parameter(
+    "obstacle_classification", "human");
+  RCLCPP_INFO(
+    this->get_logger(),
+    "Setting obstacle_classification parameter to %s",
+    _data->obstacle_classification.c_str());
   _data->debug = this->declare_parameter("debug", false);
   RCLCPP_INFO(
     this->get_logger(),
@@ -266,7 +272,7 @@ HumanDetector::HumanDetector(
           obstacle.id = obstacle_count;
           obstacle.id = obstacle_count;
           obstacle.level_name = data->level_name;
-          obstacle.classification = "human";
+          obstacle.classification = data->obstacle_classification;
           obstacle.bbox.center.position.x = spatial_x;
           obstacle.bbox.center.position.y = spatial_y;
           obstacle.bbox.center.position.z = spatial_z;
