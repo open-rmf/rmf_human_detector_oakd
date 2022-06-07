@@ -1,4 +1,6 @@
 cmake_minimum_required(VERSION 3.8)
+add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/depthai-core EXCLUDE_FROM_ALL)
+
 project(rmf_human_detector_oakd)
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
@@ -7,45 +9,40 @@ endif()
 
 # find dependencies
 find_package(ament_cmake REQUIRED)
-find_package(depthai CONFIG REQUIRED)
-find_package(pluginlib REQUIRED)
-find_package(rmf_obstacle_ros2 REQUIRED)
+find_package(rclcpp REQUIRED)
+find_package(rclcpp_components REQUIRED)
+find_package(rmf_obstacle_msgs REQUIRED)
+# find_package(depthai CONFIG REQUIRED)
+# find_package(rmf_obstacle_ros2 REQUIRED)
 
 #===============================================================================
 add_library(rmf_human_detector_oakd SHARED src/HumanDetector.cpp)
 
 target_include_directories(rmf_human_detector_oakd
-  PUBLIC
+  PRIVATE
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
-    ${rmf_obstacle_ros2_INCLUDE_DIRS}
-    ${pluginlib_INCLUDE_DIRS}
     ${rclcpp_INCLUDE_DIRS}
+    ${rclcpp_components_INCLUDE_DIRS}
+    ${rmf_obstacle_msgs_INCLUDE_DIRS}
     ${depthai_INCLUDE_DIRS}
 )
 
 target_link_libraries(rmf_human_detector_oakd
-  PUBLIC
-    rmf_obstacle_ros2::rmf_obstacle_ros2
-    pluginlib::pluginlib
+  PRIVATE
     rclcpp::rclcpp
+    ${rclcpp_components_LIBRARIES}
     depthai::opencv
 )
 
 target_compile_features(rmf_human_detector_oakd INTERFACE cxx_std_17)
-target_compile_definitions(rmf_human_detector_oakd PUBLIC "PLUGINLIB__DISABLE_BOOST_FUNCTIONS")
 
-pluginlib_export_plugin_description_file(rmf_obstacle_ros2 plugins.xml)
-
-ament_export_libraries(
-  rmf_human_detector_oakd
-)
-
-ament_export_dependencies(rclcpp rmf_obstacle_ros2 pluginlib)
+rclcpp_components_register_node(rmf_human_detector_oakd
+  PLUGIN "rmf_human_detector_oakd:OakDHumanDetector"
+  EXECUTABLE human_detector)
 
 install(
   TARGETS rmf_human_detector_oakd
-  EXPORT rmf_human_detector_oakd
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
   RUNTIME DESTINATION bin

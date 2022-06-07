@@ -17,65 +17,67 @@
 
 #include "HumanDetector.hpp"
 
+#include <rclcpp_components/register_node_macro.hpp>
+
+#include <rmf_obstacle_msgs/msg/obstacles.hpp>
+
 #include <iostream>
 
 namespace rmf_human_detector_oakd {
 
 //==============================================================================
-void OakDHumanDetector::initialize(
-  const rclcpp::Node& node,
-  DetectorCallback cb)
+OakDHumanDetector::OakDHumanDetector(
+  const rclcpp::NodeOptions& options)
+: Node("rmf_human_detector_oakd", options)
 {
   _data = std::make_shared<Data>();
-  _data->cb = std::move(cb);
-
 
   // Declare prameters
   RCLCPP_INFO(
-    node.get_logger(),
+    this->get_logger(),
     "Configuring rmf_human_detector_oakd...");
-  const std::string nnPath = node.declare_parameter("blob_path", "BLOB_PATH");
+  const std::string nnPath = this->declare_parameter("blob_path", "BLOB_PATH");
   RCLCPP_INFO(
-    node.get_logger(),
+    this->get_logger(),
     "Setting NN blob_path parameter to %s", nnPath.c_str());
-  bool syncNN = node.declare_parameter("sync_nn", true);
+  bool syncNN = this->declare_parameter("sync_nn", true);
   RCLCPP_INFO(
-    node.get_logger(),
+    this->get_logger(),
     "Setting sync_nn parameter to %b", syncNN);
-  _data->detector_name = node.declare_parameter(
+  _data->detector_name = this->declare_parameter(
     "detector_name", "rmf_human_detector_oakd");
   RCLCPP_INFO(
-    node.get_logger(),
+    this->get_logger(),
     "Setting detector_name parameter to %s", _data->detector_name.c_str());
-  _data->frame_id = node.declare_parameter("frame_id", "oakd_camera_link");
+  _data->frame_id = this->declare_parameter("frame_id", "oakd_camera_link");
   RCLCPP_INFO(
-    node.get_logger(),
+    this->get_logger(),
     "Setting frame_id parameter to %s", _data->frame_id.c_str());
-  _data->level_name = node.declare_parameter("level_name", "L1");
+  _data->level_name = this->declare_parameter("level_name", "L1");
   RCLCPP_INFO(
-    node.get_logger(),
+    this->get_logger(),
     "Setting level_name parameter to %s", _data->level_name.c_str());
-  _data->debug = node.declare_parameter("debug", false);
+  _data->debug = this->declare_parameter("debug", false);
   RCLCPP_INFO(
-    node.get_logger(),
+    this->get_logger(),
     "Setting debug parameter to %b", _data->debug);
 
   // Initialize the OakD pipeline
-  _data->pipeline = dai.Pipeline()
+  _data->pipeline = dai::Pipeline();
 
   // Add nodes for rgb, depth, and nn
-  auto camRgb = pipeline.create<dai::node::ColorCamera>();
+  auto camRgb = _data->pipeline.create<dai::node::ColorCamera>();
   auto spatialDetectionNetwork =
-    pipeline.create<dai::node::MobileNetSpatialDetectionNetwork>();
-  auto monoLeft = pipeline.create<dai::node::MonoCamera>();
-  auto monoRight = pipeline.create<dai::node::MonoCamera>();
-  auto stereo = pipeline.create<dai::node::StereoDepth>();
+    _data->pipeline.create<dai::node::MobileNetSpatialDetectionNetwork>();
+  auto monoLeft = _data->pipeline.create<dai::node::MonoCamera>();
+  auto monoRight = _data->pipeline.create<dai::node::MonoCamera>();
+  auto stereo = _data->pipeline.create<dai::node::StereoDepth>();
 
   // Create connections
-  auto xoutRgb = pipeline.create<dai::node::XLinkOut>();
-  auto xoutNN = pipeline.create<dai::node::XLinkOut>();
-  auto xoutBoundingBoxDepthMapping = pipeline.create<dai::node::XLinkOut>();
-  auto xoutDepth = pipeline.create<dai::node::XLinkOut>();
+  auto xoutRgb = _data->pipeline.create<dai::node::XLinkOut>();
+  auto xoutNN = _data->pipeline.create<dai::node::XLinkOut>();
+  auto xoutBoundingBoxDepthMapping = _data->pipeline.create<dai::node::XLinkOut>();
+  auto xoutDepth = _data->pipeline.create<dai::node::XLinkOut>();
 
   // Create message streams
   xoutRgb->setStreamName("rgb");
@@ -98,7 +100,7 @@ void OakDHumanDetector::initialize(
   monoRight->setBoardSocket(dai::CameraBoardSocket::RIGHT);
 
   // Setting node configs
-  stereo->initialConfig->setConfidenceThreshold(255);
+  stereo->initialConfig.setConfidenceThreshold(255);
   stereo->setDefaultProfilePreset(dai::node::StereoDepth::PresetMode::HIGH_DENSITY);
   // Align depth map to the perspective of RGB camera, on which inference is done
   stereo->setDepthAlign(dai::CameraBoardSocket::RGB);
@@ -129,7 +131,7 @@ void OakDHumanDetector::initialize(
   stereo->depth.link(spatialDetectionNetwork->inputDepth);
   spatialDetectionNetwork->passthroughDepth.link(xoutDepth->input);
 
-  _data->detection_thread = std::thread(
+  auto thread_fn =
     [data = _data]()
     {
       dai::Device device(data->pipeline);
@@ -147,8 +149,8 @@ void OakDHumanDetector::initialize(
       while(data->run)
       {
         auto inDet = detectionNNQueue->get<dai::SpatialImgDetections>();
-        if(inDet == nullptr):
-            continue
+        if(inDet == nullptr)
+          continue;
 
         auto depth = depthQueue->get<dai::ImgFrame>();
         cv::Mat depthFrame = depth->getFrame();  // depthFrame values are in millimeters
@@ -172,6 +174,7 @@ void OakDHumanDetector::initialize(
         cv::Mat depthFrameColor;
         if (data->debug)
         {
+          const auto& inPreview = previewQueue->get<dai::ImgFrame>();
           const cv::Mat& frame = inPreview->getCvFrame();
           cv::normalize(depthFrame, depthFrameColor, 255, 0, cv::NORM_INF, CV_8UC1);
           cv::equalizeHist(depthFrameColor, depthFrameColor);
@@ -181,12 +184,13 @@ void OakDHumanDetector::initialize(
         auto detection_it = detections.begin();
         auto roi_it = roiDatas.begin();
 
-        Obstacles obstacles;
+        rmf_obstacle_msgs::msg::Obstacles obstacles;
         std::size_t obstacle_count = 0;
-        for (; detection_it != detections.end(); ++detection_it; ++roi_it)
+        for (; detection_it != detections.end(); ++detection_it, ++roi_it)
         {
           ++obstacle_count;
-          const auto roi = roi_it->roi.denormalize(depthFrame.cols, depthFrame.rows);
+          auto roi = roi_it->roi;
+          roi = roi.denormalize(depthFrame.cols, depthFrame.rows);
           if (detection_it->label >= data->labels.size())
           {
             // std::cout << "[Warn] Detected unclassified object." << std::endl;
@@ -226,36 +230,29 @@ void OakDHumanDetector::initialize(
           obstacle.header.frame_id = data->frame_id;
           // TODO(YV): Stamp
           obstacle.id = obstacle_count;
-          obstacle.id = data->detector_name;
+          obstacle.id = obstacle_count;
           obstacle.level_name = data->level_name;
         }
 
-    });
+      }
+
+    };
+
+    _data->detection_thread = std::thread(thread_fn);
 
 }
 
 //==============================================================================
-std::string OakDHumanDetector::name() const
-{
-  if (_data)
-    return _data->detector_name;
-  return "rmf_human_detector_oakd";
-}
-
-//==============================================================================
-OakDHumanDetector::~OakDHUmanDetector()
+OakDHumanDetector::~OakDHumanDetector()
 {
   if (_data->detection_thread.joinable())
   {
-    _data-run = false;
+    _data->run = false;
     _data->detection_thread.join();
   }
 }
 
 } // rmf_human_detector_oakd
 
-#include <pluginlib/class_list_macros.hpp>
 
-PLUGINLIB_EXPORT_CLASS(
-  rmf_human_detector_oakd::OakDHumanDetector,
-  rmf_obstacle_ros2::Detector)
+RCLCPP_COMPONENTS_REGISTER_NODE(rmf_human_detector_oakd::OakDHumanDetector)

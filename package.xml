@@ -10,10 +10,9 @@
   <buildtool_depend>ament_cmake</buildtool_depend>
 
   <depend>rclcpp</depend>
+  <depend>rclcpp_components</depend>
   <depend>depthai</depend>
-  <depend>pluginlib</depend>
-  <depend>rmf_obstacle_ros2</depend>
-  <depend>resource_retriever</depend>
+  <depend>rmf_obstacle_msgs</depend>
 
   <export>
     <build_type>ament_cmake</build_type>

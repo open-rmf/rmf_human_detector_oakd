@@ -20,8 +20,6 @@
 
 #include <depthai/depthai.hpp>
 
-#include <rmf_obstacle_ros2/Detector.hpp>
-
 #include <rclcpp/rclcpp.hpp>
 
 #include <thread>
@@ -29,26 +27,17 @@
 
 namespace rmf_human_detector_oakd {
 //==============================================================================
-class OakDHumanDetector : public rmf_obstacle_ros2::Detector
+class OakDHumanDetector : public rclcpp::Node
 {
 public:
-  using Obstacles = rmf_obstacle_ros2::Detector::Obstacles;
-  using DetectorCallback = rmf_obstacle_ros2::Detector::DetectorCallback;
-
-  /// Documentation inherited
-  void initialize(
-    const rclcpp::Node& node,
-    DetectorCallback cb) final;
-
-  /// Documentation inherited
-  std::string name() const final;
+  OakDHumanDetector(
+    const rclcpp::NodeOptions& options = rclcpp::NodeOptions());
 
   ~OakDHumanDetector();
 
 private:
   struct Data
   {
-    DetectorCallback cb;
     std::string detector_name;
     std::string frame_id;
     std::string level_name;
