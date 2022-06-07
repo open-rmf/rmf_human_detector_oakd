@@ -22,6 +22,8 @@
 
 #include <rclcpp/rclcpp.hpp>
 
+#include <rmf_obstacle_msgs/msg/obstacles.hpp>
+
 #include <thread>
 #include <atomic>
 
@@ -30,6 +32,7 @@ namespace rmf_human_detector_oakd {
 class OakDHumanDetector : public rclcpp::Node
 {
 public:
+  using Obstacles = rmf_obstacle_msgs::msg::Obstacles;
   OakDHumanDetector(
     const rclcpp::NodeOptions& options = rclcpp::NodeOptions());
 
@@ -54,6 +57,7 @@ private:
     std::atomic_bool run = true;
     std::thread detection_thread;
     bool debug; // Visualize cv frames
+    rclcpp::Publisher<Obstacles>::SharedPtr pub;
   };
 
   std::shared_ptr<Data> _data;

@@ -19,8 +19,6 @@
 
 #include <rclcpp_components/register_node_macro.hpp>
 
-#include <rmf_obstacle_msgs/msg/obstacles.hpp>
-
 #include <iostream>
 
 namespace rmf_human_detector_oakd {
@@ -32,11 +30,15 @@ OakDHumanDetector::OakDHumanDetector(
 {
   _data = std::make_shared<Data>();
 
+  _data->pub = this->create_publisher<Obstacles>(
+    "/rmf_obstacles",
+    10);
+
   // Declare prameters
   RCLCPP_INFO(
     this->get_logger(),
     "Configuring rmf_human_detector_oakd...");
-  const std::string nnPath = this->declare_parameter("blob_path", "BLOB_PATH");
+  const std::string nnPath = this->declare_parameter("blob_path", "");
   RCLCPP_INFO(
     this->get_logger(),
     "Setting NN blob_path parameter to %s", nnPath.c_str());
@@ -141,9 +143,6 @@ OakDHumanDetector::OakDHumanDetector(
       auto xoutBoundingBoxDepthMappingQueue = device.getOutputQueue("boundingBoxDepthMapping", 4, false);
       auto depthQueue = device.getOutputQueue("depth", 4, false);
 
-      auto startTime = std::chrono::steady_clock::now();
-      int counter = 0;
-      float fps = 0;
       const auto color = cv::Scalar(255, 255, 255);
 
       while(data->run)
@@ -172,10 +171,11 @@ OakDHumanDetector::OakDHumanDetector(
         // TODO(YV) track objects and update on when there is significant change in position
 
         cv::Mat depthFrameColor;
+        cv::Mat frame;
         if (data->debug)
         {
           const auto& inPreview = previewQueue->get<dai::ImgFrame>();
-          const cv::Mat& frame = inPreview->getCvFrame();
+          frame = inPreview->getCvFrame();
           cv::normalize(depthFrame, depthFrameColor, 255, 0, cv::NORM_INF, CV_8UC1);
           cv::equalizeHist(depthFrameColor, depthFrameColor);
           cv::applyColorMap(depthFrameColor, depthFrameColor, cv::COLORMAP_HOT);
@@ -184,7 +184,7 @@ OakDHumanDetector::OakDHumanDetector(
         auto detection_it = detections.begin();
         auto roi_it = roiDatas.begin();
 
-        rmf_obstacle_msgs::msg::Obstacles obstacles;
+        auto obstacles = std::make_unique<Obstacles>();
         std::size_t obstacle_count = 0;
         for (; detection_it != detections.end(); ++detection_it, ++roi_it)
         {
@@ -232,8 +232,27 @@ OakDHumanDetector::OakDHumanDetector(
           obstacle.id = obstacle_count;
           obstacle.id = obstacle_count;
           obstacle.level_name = data->level_name;
+          obstacle.classification = "human";
+          obstacle.bbox.center.position.x = spatial_x;
+          obstacle.bbox.center.position.y = spatial_y;
+          obstacle.bbox.center.position.z = spatial_z;
+          obstacle.bbox.size.x = human_width;
+          obstacle.bbox.size.y = human_width;
+          obstacle.bbox.size.z = human_height;
+          obstacle.action = rmf_obstacle_msgs::msg::Obstacle::ACTION_ADD;
+          obstacles->obstacles.push_back(obstacle);
         }
 
+        if (!obstacles->obstacles.empty())
+        {
+          data->pub->publish(std::move(obstacles));
+        }
+
+        if (data->debug)
+        {
+          cv::imshow("depth", depthFrameColor);
+          cv::imshow("preview", frame);
+        }
       }
 
     };

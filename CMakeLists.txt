@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.8)
-add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/depthai-core EXCLUDE_FROM_ALL)
+# add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/depthai-core EXCLUDE_FROM_ALL)
 
 project(rmf_human_detector_oakd)
 
@@ -12,14 +12,13 @@ find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(rclcpp_components REQUIRED)
 find_package(rmf_obstacle_msgs REQUIRED)
-# find_package(depthai CONFIG REQUIRED)
-# find_package(rmf_obstacle_ros2 REQUIRED)
+find_package(depthai CONFIG REQUIRED)
 
 #===============================================================================
 add_library(rmf_human_detector_oakd SHARED src/HumanDetector.cpp)
 
 target_include_directories(rmf_human_detector_oakd
-  PRIVATE
+  PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
     ${rclcpp_INCLUDE_DIRS}
@@ -29,10 +28,11 @@ target_include_directories(rmf_human_detector_oakd
 )
 
 target_link_libraries(rmf_human_detector_oakd
-  PRIVATE
+  PUBLIC
     rclcpp::rclcpp
     ${rclcpp_components_LIBRARIES}
     depthai::opencv
+    ${rmf_obstacle_msgs_LIBRARIES}
 )
 
 target_compile_features(rmf_human_detector_oakd INTERFACE cxx_std_17)
@@ -41,8 +41,7 @@ rclcpp_components_register_node(rmf_human_detector_oakd
   PLUGIN "rmf_human_detector_oakd:OakDHumanDetector"
   EXECUTABLE human_detector)
 
-install(
-  TARGETS rmf_human_detector_oakd
+  install(TARGETS rmf_human_detector_oakd
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
   RUNTIME DESTINATION bin
